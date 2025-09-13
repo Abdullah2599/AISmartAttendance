@@ -1,0 +1,20 @@
+{
+  "35aed0b3-ec3d-40a3-96a5-292b8712c659": {
+    "name": "math",
+    "description": "jhjhjjhjhj",
+    "schedule": {
+      "days": [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday"
+      ],
+      "start_time": "14:00",
+      "end_time": "16:30"
+    },
+    "created_date": "2025-09-13T14:15:48.170983",
+    "id": "35aed0b3-ec3d-40a3-96a5-292b8712c659"
+  }
+}

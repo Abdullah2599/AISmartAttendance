@@ -1,0 +1,28 @@
+# AI Attendance System - Complete Requirements
+# Install with: pip install -r requirements.txt
+
+# Core Web Framework
+streamlit==1.28.1
+
+# Computer Vision & Image Processing
+opencv-python==4.8.1.78
+opencv-contrib-python==4.8.1.78
+numpy==1.24.3
+pillow==10.0.1
+
+# Data Processing
+pandas==2.0.3
+python-dateutil==2.8.2
+
+# QR Code Generation & Scanning
+qrcode==7.4.2
+pyzbar==0.1.9
+
+# Camera Input for Streamlit
+streamlit-camera-input-live==0.2.0
+
+# Database & Cloud Storage (Optional)
+firebase-admin==6.2.0
+
+# Additional Dependencies (Built-in Python modules - no installation needed)
+# uuid, datetime, json, os, io, base64 are built-in modules
