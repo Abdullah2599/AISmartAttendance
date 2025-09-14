@@ -11,7 +11,6 @@ class DatabaseManager:
         self.db = None
         self.initialize_firebase()
         
-        # Fallback to local JSON storage if Firebase fails
         self.local_storage = True
         self.data_dir = "data"
         self.students_file = os.path.join(self.data_dir, "students.json")
@@ -62,7 +61,6 @@ class DatabaseManager:
     def add_student(self, student_data):
         """Add new student - prevent duplicate face registration"""
         try:
-            # Check multiple criteria to prevent duplicate registration
             roll_number = student_data.get('roll_number')
             student_name = student_data.get('name', '').lower().strip()
             
@@ -73,7 +71,6 @@ class DatabaseManager:
                     existing_name = student.get('name', '').lower().strip()
                     has_images = student.get('image_paths') and len(student.get('image_paths', [])) > 0
                     
-                    # Block if same roll number OR same name (with face images)
                     if has_images and (
                         (roll_number and existing_roll == roll_number) or
                         (student_name and existing_name == student_name)
@@ -86,13 +83,11 @@ class DatabaseManager:
             student_data['registration_date'] = datetime.now().isoformat()
             
             if self.local_storage:
-                # Local storage
                 students = self.load_json_file(self.students_file)
                 students[student_id] = student_data
                 if self.save_json_file(self.students_file, students):
                     return student_id
             else:
-                # Firebase storage
                 doc_ref = self.db.collection('students').document(student_id)
                 doc_ref.set(student_data)
                 return student_id
@@ -142,14 +137,12 @@ class DatabaseManager:
             
             for student in all_students:
                 student_classes = student.get('classes', [])
-                # Support both old single class format and new multiple classes format
                 if isinstance(student_classes, str):
                     if student_classes == class_name:
                         class_students.append(student)
                 elif isinstance(student_classes, list):
                     if class_name in student_classes:
                         class_students.append(student)
-                # Fallback to old 'class' field
                 elif student.get('class') == class_name:
                     class_students.append(student)
             
@@ -194,7 +187,6 @@ class DatabaseManager:
             class_data['id'] = class_id
             class_data['created_date'] = datetime.now().isoformat()
             
-            # Ensure schedule fields exist
             if 'schedule' not in class_data:
                 class_data['schedule'] = {
                     'days': ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
@@ -258,13 +250,11 @@ class DatabaseManager:
                 if date_str not in attendance:
                     attendance[date_str] = {}
                 
-                # Check for existing attendance and only update if not already marked
                 for class_name, students in attendance_data.items():
                     if class_name not in attendance[date_str]:
                         attendance[date_str][class_name] = {}
                     
                     for student_id, record in students.items():
-                        # Only mark if not already present for this class today
                         existing_record = attendance[date_str][class_name].get(student_id)
                         if not existing_record or existing_record.get('status') != 'present':
                             attendance[date_str][class_name][student_id] = record
@@ -315,16 +305,13 @@ class DatabaseManager:
                 start_time = schedule.get('start_time', '09:00')
                 end_time = schedule.get('end_time', '10:00')
                 
-                # Check if today is in the class schedule
                 if current_day in days:
-                    # Parse start and end times
                     start_parts = start_time.split(':')
                     end_parts = end_time.split(':')
                     
                     start_total_minutes = int(start_parts[0]) * 60 + int(start_parts[1])
                     end_total_minutes = int(end_parts[0]) * 60 + int(end_parts[1])
                     
-                    # Check if current time is within class time
                     if start_total_minutes <= current_total_minutes <= end_total_minutes:
                         active_classes.append(cls)
             
@@ -342,7 +329,6 @@ class DatabaseManager:
             daily_attendance = self.get_attendance_by_date(date_str)
             class_attendance = daily_attendance.get(class_name, {})
             
-            # Get detailed student info
             detailed_attendance = []
             for student_id, record in class_attendance.items():
                 student_info = self.get_student_by_id(student_id)
@@ -366,7 +352,6 @@ class DatabaseManager:
     def get_attendance_status_by_time(self, class_name, current_time):
         """Determine attendance status based on class schedule and current time"""
         try:
-            # Get class schedule
             classes = self.get_all_classes()
             target_class = None
             for cls in classes:
@@ -375,36 +360,28 @@ class DatabaseManager:
                     break
             
             if not target_class:
-                return 'absent'  # Class not found
+                return 'absent'
             
             schedule = target_class.get('schedule', {})
             start_time_str = schedule.get('start_time', '09:00')
             
-            # Parse times
             from datetime import datetime, timedelta
             start_time = datetime.strptime(start_time_str, '%H:%M').time()
             current_time_obj = datetime.strptime(current_time.strftime('%H:%M'), '%H:%M').time()
             
-            # Convert to datetime objects for comparison
             today = current_time.date()
             start_datetime = datetime.combine(today, start_time)
-            current_datetime = datetime.combine(today, current_time_obj)
             
-            # Calculate time differences
-            time_diff = (current_datetime - start_datetime).total_seconds() / 60  # in minutes
+            time_diff = (current_time - start_datetime).total_seconds() / 60
             
-            # Attendance rules:
-            # 15 minutes before class start: Present
-            # After class start to 1 hour: Late
-            # After 1 hour: Absent
             
-            if time_diff <= -15:  # More than 15 minutes before class
+            if time_diff <= -15:
                 return 'present'
-            elif time_diff <= 0:  # Within 15 minutes before class start
+            elif time_diff <= 0:
                 return 'present'
-            elif time_diff <= 60:  # Within 1 hour after class start
+            elif time_diff <= 60:
                 return 'late'
-            else:  # More than 1 hour after class start
+            else:
                 return 'absent'
                 
         except Exception as e:
@@ -421,7 +398,6 @@ class DatabaseManager:
             class_attendance = daily_attendance.get(class_name, {})
             student_record = class_attendance.get(student_id, {})
             
-            # Return True if student has any status (present, late, or absent)
             return bool(student_record.get('status'))
         except Exception as e:
             print(f"Error checking student attendance: {e}")
@@ -432,17 +408,13 @@ class DatabaseManager:
         try:
             classes_with_dates = {}
             
-            # Get all classes
             all_classes = self.get_all_classes()
             
-            # Get all attendance data
             if self.local_storage:
                 attendance_data = self.load_json_file(self.attendance_file)
             else:
-                # For Firebase, we'd need to get all attendance documents
                 attendance_data = {}
             
-            # Build classes with their attendance dates
             for cls in all_classes:
                 class_name = cls.get('name')
                 classes_with_dates[class_name] = {

@@ -8,15 +8,13 @@ from modules.database import DatabaseManager
 from modules.qr_handler import QRHandler
 from modules.attendance import AttendanceManager
 
-# Page configuration
 st.set_page_config(
     page_title="AI Attendance Manager",
     page_icon="🎓",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# Initialize components
 @st.cache_resource
 def initialize_components():
     face_recognizer = FaceRecognizer()
@@ -25,24 +23,95 @@ def initialize_components():
     attendance_manager = AttendanceManager()
     return face_recognizer, db_manager, qr_handler, attendance_manager
 
+def load_glassmorphism_styles():
+    """Load glassmorphism CSS and JavaScript"""
+    try:
+        css_path = os.path.join(os.path.dirname(__file__), 'static', 'css', 'glassmorphism_style.css')
+        if os.path.exists(css_path):
+            with open(css_path, 'r') as f:
+                css = f.read()
+            st.markdown(f'<style>{css}</style>', unsafe_allow_html=True)
+        
+        js_path = os.path.join(os.path.dirname(__file__), 'static', 'js', 'glassmorphism_animations.js')
+        if os.path.exists(js_path):
+            with open(js_path, 'r') as f:
+                js = f.read()
+            st.markdown(f'<script>{js}</script>', unsafe_allow_html=True)
+    except Exception as e:
+        print(f"Error loading glassmorphism styles: {e}")
+
 def main():
-    st.title("🎓 AI Attendance Manager")
-    st.markdown("### Smart Attendance System Using Face Recognition")
+    load_glassmorphism_styles()
     
-    # Initialize components
+    st.markdown('''
+    <div class="infinity-background"></div>
+    <div class="floating-particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+    
+    <div class="galaxy-topbar">
+        <div class="topbar-logo">AI Attendance</div>
+    </div>
+    
+    <div class="main-content">
+    ''', unsafe_allow_html=True)
+    
     face_recognizer, db_manager, qr_handler, attendance_manager = initialize_components()
     
-    # Sidebar navigation
-    st.sidebar.title("Navigation")
-    page = st.sidebar.selectbox(
-        "Choose a page",
-        ["Dashboard", "Student Registration", "Attendance Marking", "Class Management", "Reports", "QR Scanner"]
-    )
+    if 'current_page' not in st.session_state:
+        st.session_state.current_page = "Dashboard"
     
-    # Check if today is Sunday
-    today = datetime.now()
-    if today.weekday() == 6:  # Sunday
-        st.warning("📅 Today is Sunday - No attendance will be marked!")
+    query_params = st.experimental_get_query_params()
+    if 'page' in query_params:
+        page_from_url = query_params['page'][0]
+        page_mapping = {
+            'dashboard': 'Dashboard',
+            'registration': 'Student Registration', 
+            'attendance': 'Attendance Marking',
+            'classes': 'Class Management',
+            'reports': 'Reports',
+            'qr': 'QR Scanner'
+        }
+        if page_from_url in page_mapping:
+            st.session_state.current_page = page_mapping[page_from_url]
+    
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    
+    with col1:
+        if st.button("📊 Dashboard", key="nav_dashboard"):
+            st.session_state.current_page = "Dashboard"
+            st.experimental_set_query_params(page="dashboard")
+    with col2:
+        if st.button("👤 Registration", key="nav_registration"):
+            st.session_state.current_page = "Student Registration"
+            st.experimental_set_query_params(page="registration")
+    with col3:
+        if st.button("✅ Attendance", key="nav_attendance"):
+            st.session_state.current_page = "Attendance Marking"
+            st.experimental_set_query_params(page="attendance")
+    with col4:
+        if st.button("🏫 Classes", key="nav_classes"):
+            st.session_state.current_page = "Class Management"
+            st.experimental_set_query_params(page="classes")
+    with col5:
+        if st.button("📊 Reports", key="nav_reports"):
+            st.session_state.current_page = "Reports"
+            st.experimental_set_query_params(page="reports")
+    with col6:
+        if st.button("📱 QR Scanner", key="nav_qr"):
+            st.session_state.current_page = "QR Scanner"
+            st.experimental_set_query_params(page="qr")
+    
+    page = st.session_state.current_page
+    
     
     if page == "Dashboard":
         show_dashboard(db_manager, attendance_manager)
@@ -56,13 +125,14 @@ def main():
         show_reports(db_manager)
     elif page == "QR Scanner":
         show_qr_scanner(qr_handler, db_manager)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def show_dashboard(db_manager, attendance_manager):
     st.header("📊 Dashboard")
     
     col1, col2, col3, col4 = st.columns(4)
     
-    # Get statistics
     total_students = len(db_manager.get_all_students())
     total_classes = len(db_manager.get_all_classes())
     today_date = datetime.now().strftime("%Y-%m-%d")
@@ -81,7 +151,6 @@ def show_dashboard(db_manager, attendance_manager):
     with col4:
         st.metric("Attendance Rate", f"{(present_today/max(total_students,1)*100):.1f}%")
     
-    # Recent attendance
     st.subheader("📋 Recent Attendance")
     if today_attendance:
         df_data = []
@@ -122,7 +191,6 @@ def show_student_registration(face_recognizer, db_manager, qr_handler):
             if not class_names:
                 class_names = ["No classes available"]
             
-            # Multiple class selection
             st.subheader("📚 Select Classes")
             selected_classes = st.multiselect(
                 "Select Classes (can select multiple)*", 
@@ -131,7 +199,6 @@ def show_student_registration(face_recognizer, db_manager, qr_handler):
                 help="Student can be enrolled in multiple classes"
             )
             
-            # Image capture options
             st.subheader("📸 Capture Student Photo")
             capture_method = st.radio(
                 "Choose capture method:", 
@@ -139,7 +206,6 @@ def show_student_registration(face_recognizer, db_manager, qr_handler):
                 key="reg_capture_method"
             )
         
-        # Image capture section
         captured_images = []
         
         if capture_method == "Camera":
@@ -163,16 +229,12 @@ def show_student_registration(face_recognizer, db_manager, qr_handler):
             st.info("📱 Generate QR code first, then scan with mobile to upload photo")
             st.write("This feature will be available after registration")
         
-        # Submit button (REQUIRED for st.form)
         submitted = st.form_submit_button("🎯 Register Student", use_container_width=True)
         
-        # Process form submission
         if submitted:
-            # Get the captured image from the list
             captured_image = captured_images[0] if captured_images else None
             
             if name and roll_number and selected_classes and captured_image is not None:
-                # Check if student already exists
                 exists, existing_id = db_manager.check_student_already_exists(roll_number)
                 if exists:
                     st.error(f"❌ Student with roll number {roll_number} already exists!")
@@ -183,10 +245,9 @@ def show_student_registration(face_recognizer, db_manager, qr_handler):
                             'roll_number': roll_number,
                             'email': email,
                             'phone': phone,
-                            'classes': selected_classes  # Store multiple classes
+                            'classes': selected_classes
                         }
                         
-                        # Check face similarity BEFORE adding to database
                         with st.spinner("Checking for duplicate faces..."):
                             is_duplicate_face = face_recognizer.check_face_similarity(captured_image)
                         
@@ -194,22 +255,18 @@ def show_student_registration(face_recognizer, db_manager, qr_handler):
                             st.error("❌ This face is already registered! Same person cannot register again.")
                             st.warning("🔍 Your uploaded image matches with existing student images.")
                         else:
-                            # Add student to database only if face is unique
                             student_id = db_manager.add_student(student_data)
                             
                             if student_id == "DUPLICATE_STUDENT":
                                 st.error("❌ This student is already registered! Same person cannot register again.")
                             elif student_id:
-                                # Process and save face images
                                 with st.spinner("Processing face images..."):
                                     success = face_recognizer.process_student_images(student_id, name, captured_image, roll_number)
                                 
                                 if success:
-                                    # Update student record with image paths
                                     student_dir = f"data/students/{roll_number}_{name.replace(' ', '_')}"
                                     image_paths = [os.path.join(student_dir, f"face_{i:03d}.jpg") for i in range(100)]
                                     
-                                    # Update student data in database
                                     updated_data = student_data.copy()
                                     updated_data['image_paths'] = image_paths
                                     db_manager.update_student(student_id, updated_data)
@@ -218,7 +275,6 @@ def show_student_registration(face_recognizer, db_manager, qr_handler):
                                     st.info(f"📚 Enrolled in classes: {', '.join(selected_classes)}")
                                     st.balloons()
                                     
-                                    # Generate QR code for student
                                     qr_code_path = qr_handler.generate_student_qr(student_id, name)
                                     if qr_code_path:
                                         st.success(f"📱 QR Code generated: {qr_code_path}")
@@ -236,7 +292,6 @@ def show_student_registration(face_recognizer, db_manager, qr_handler):
                 if captured_image is None: missing.append("Photo")
                 st.error(f"❌ Please fill in: {', '.join(missing)}")
     
-    # Show existing students
     st.subheader("👥 Registered Students")
     students = db_manager.get_all_students()
     
@@ -267,10 +322,7 @@ def show_student_registration(face_recognizer, db_manager, qr_handler):
 def show_attendance_marking(face_recognizer, db_manager, attendance_manager):
     st.header("✅ Attendance Marking")
     
-    # Check if Sunday
-    if datetime.now().weekday() == 6:
-        st.error("📅 Attendance cannot be marked on Sunday!")
-        return
+    # Attendance available all days including Sunday
     
     # Class selection - only show active classes
     active_classes = db_manager.get_classes_for_current_time()
@@ -393,8 +445,8 @@ def show_class_management(db_manager):
                 st.subheader("Class Schedule")
                 
                 # Days selection
-                days_options = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-                selected_days = st.multiselect("Select Class Days*", days_options, default=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
+                days_options = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                selected_days = st.multiselect("Select Class Days*", days_options, default=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'])
                 
                 # Time selection
                 start_time = st.time_input("Start Time*", value=datetime.strptime('09:00', '%H:%M').time())

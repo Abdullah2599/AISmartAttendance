@@ -1,20 +1,17 @@
 {
-  "35aed0b3-ec3d-40a3-96a5-292b8712c659": {
-    "name": "math",
-    "description": "jhjhjjhjhj",
+  "7e989f73-ea21-4f9d-981a-ed5afe3b64eb": {
+    "name": "Math",
+    "description": "abcs",
     "schedule": {
       "days": [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday"
+        "Sunday",
+        "Saturday",
+        "Monday"
       ],
-      "start_time": "14:00",
-      "end_time": "16:30"
+      "start_time": "04:00",
+      "end_time": "07:00"
     },
-    "created_date": "2025-09-13T14:15:48.170983",
-    "id": "35aed0b3-ec3d-40a3-96a5-292b8712c659"
+    "created_date": "2025-09-14T04:05:49.622264",
+    "id": "7e989f73-ea21-4f9d-981a-ed5afe3b64eb"
   }
 }
