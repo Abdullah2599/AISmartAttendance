@@ -10,5 +10,33 @@
         "confidence": 0.04335754346341521
       }
     }
+  },
+  "2025-10-18": {
+    "abc": {
+      "28c8873d-2527-4108-a53d-a38db17b5de3": {
+        "status": "absent",
+        "in_time": "",
+        "out_time": "",
+        "date": "2025-10-18",
+        "marked_by": "auto_absent",
+        "confidence": 0
+      },
+      "f0951e33-69b6-47ec-93eb-54aa7949d6ef": {
+        "status": "absent",
+        "in_time": "",
+        "out_time": "",
+        "date": "2025-10-18",
+        "marked_by": "auto_absent",
+        "confidence": 0
+      },
+      "f0f1a889-c710-4813-b802-8ae3acc184ba": {
+        "status": "absent",
+        "in_time": "13:52:05",
+        "out_time": "",
+        "date": "2025-10-18",
+        "marked_by": "face_recognition",
+        "confidence": 0.2867195868971365
+      }
+    }
   }
 }

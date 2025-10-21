@@ -180,6 +180,82 @@ class DatabaseManager:
             print(f"Error updating student: {e}")
             return False
     
+    def delete_student(self, student_id):
+        """Delete student and all associated data including images"""
+        try:
+            if self.local_storage:
+                students = self.load_json_file(self.students_file)
+                if student_id in students:
+                    student_data = students[student_id]
+                    
+                    # Delete student images
+                    self.delete_student_images(student_data)
+                    
+                    # Remove from students file
+                    del students[student_id]
+                    success = self.save_json_file(self.students_file, students)
+                    
+                    if success:
+                        # Remove from attendance records
+                        self.remove_student_from_attendance(student_id)
+                        print(f"Student {student_data.get('name', 'Unknown')} deleted successfully")
+                        return True
+                    
+            else:
+                # Firebase deletion
+                doc_ref = self.db.collection('students').document(student_id)
+                doc_ref.delete()
+                return True
+                
+            return False
+        except Exception as e:
+            print(f"Error deleting student: {e}")
+            return False
+    
+    def delete_student_images(self, student_data):
+        """Delete all student image files"""
+        try:
+            import shutil
+            
+            # Get student directory path
+            roll_number = student_data.get('roll_number', 'unknown')
+            name = student_data.get('name', 'unknown').replace(' ', '_')
+            student_dir = f"data/students/{roll_number}_{name}"
+            
+            # Delete entire student directory
+            if os.path.exists(student_dir):
+                shutil.rmtree(student_dir)
+                print(f"Deleted student directory: {student_dir}")
+                
+            # Also delete individual image files if listed in image_paths
+            image_paths = student_data.get('image_paths', [])
+            for image_path in image_paths:
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+                    
+        except Exception as e:
+            print(f"Error deleting student images: {e}")
+    
+    def remove_student_from_attendance(self, student_id):
+        """Remove student from all attendance records"""
+        try:
+            attendance_data = self.load_json_file(self.attendance_file)
+            
+            # Remove student from all dates and classes
+            for date_key in attendance_data:
+                if isinstance(attendance_data[date_key], dict):
+                    for class_name in attendance_data[date_key]:
+                        if isinstance(attendance_data[date_key][class_name], dict):
+                            if student_id in attendance_data[date_key][class_name]:
+                                del attendance_data[date_key][class_name][student_id]
+            
+            # Save updated attendance data
+            self.save_json_file(self.attendance_file, attendance_data)
+            print(f"Removed student {student_id} from attendance records")
+            
+        except Exception as e:
+            print(f"Error removing student from attendance: {e}")
+    
     def add_class(self, class_data):
         """Add new class with schedule"""
         try:

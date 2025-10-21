@@ -1,6 +1,6 @@
 import qrcode
 import cv2
-from pyzbar import pyzbar
+# from pyzbar import pyzbar
 import json
 import os
 from PIL import Image
@@ -24,24 +24,24 @@ class QRHandler:
             }
             
             # Create QR code
-            qr = qrcode.QRCode(
-                version=1,
-                error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=10,
-                border=4,
-            )
-            qr.add_data(json.dumps(qr_data))
-            qr.make(fit=True)
+            # qr = qrcode.QRCode(
+            #     version=1,
+            #     error_correction=qrcode.constants.ERROR_CORRECT_L,
+            #     box_size=10,
+            #     border=4,
+            # )
+            # qr.add_data(json.dumps(qr_data))
+            # qr.make(fit=True)
             
-            # Create image
-            qr_image = qr.make_image(fill_color="black", back_color="white")
+            # # Create image
+            # qr_image = qr.make_image(fill_color="black", back_color="white")
             
-            # Save QR code
-            qr_filename = f"student_{student_id}_qr.png"
-            qr_path = os.path.join(self.qr_dir, qr_filename)
-            qr_image.save(qr_path)
+            # # Save QR code
+            # qr_filename = f"student_{student_id}_qr.png"
+            # qr_path = os.path.join(self.qr_dir, qr_filename)
+            # qr_image.save(qr_path)
             
-            return qr_path
+            # return qr_path
             
         except Exception as e:
             print(f"Error generating QR code: {e}")
@@ -62,17 +62,17 @@ class QRHandler:
             
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             
-            decoded_objects = pyzbar.decode(gray)
+            # decoded_objects = pyzbar.decode(gray)
             
-            for obj in decoded_objects:
-                qr_data = obj.data.decode('utf-8')
-                try:
-                    parsed_data = json.loads(qr_data)
-                    return parsed_data
-                except json.JSONDecodeError:
-                    return {'type': 'text', 'data': qr_data}
+            # for obj in decoded_objects:
+            #     qr_data = obj.data.decode('utf-8')
+            #     try:
+            #         parsed_data = json.loads(qr_data)
+            #         return parsed_data
+            #     except json.JSONDecodeError:
+            #         return {'type': 'text', 'data': qr_data}
             
-            return None
+            # return None
             
         except Exception as e:
             print(f"Error scanning QR code: {e}")

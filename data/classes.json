@@ -13,5 +13,23 @@
     },
     "created_date": "2025-09-14T04:05:49.622264",
     "id": "7e989f73-ea21-4f9d-981a-ed5afe3b64eb"
+  },
+  "a8875569-3432-40df-ba38-efeee7279d87": {
+    "name": "abc",
+    "description": "abcd",
+    "schedule": {
+      "days": [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday"
+      ],
+      "start_time": "12:30",
+      "end_time": "14:15"
+    },
+    "created_date": "2025-10-18T13:02:50.084135",
+    "id": "a8875569-3432-40df-ba38-efeee7279d87"
   }
 }

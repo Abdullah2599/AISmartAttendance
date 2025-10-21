@@ -23,6 +23,60 @@ def initialize_components():
     attendance_manager = AttendanceManager()
     return face_recognizer, db_manager, qr_handler, attendance_manager
 
+def clear_cache():
+    """Clear Streamlit cache to reload components"""
+    st.cache_resource.clear()
+
+def manual_delete_student(student_data):
+    """Manual student deletion as backup"""
+    try:
+        import json
+        import os
+        import shutil
+        
+        student_id = student_data.get('id')
+        roll_number = student_data.get('roll_number', 'unknown')
+        name = student_data.get('name', 'unknown').replace(' ', '_')
+        
+        # Delete from students.json
+        students_file = "data/students.json"
+        if os.path.exists(students_file):
+            with open(students_file, 'r') as f:
+                students = json.load(f)
+            
+            if student_id in students:
+                del students[student_id]
+                
+                with open(students_file, 'w') as f:
+                    json.dump(students, f, indent=2)
+        
+        # Delete student images directory
+        student_dir = f"data/students/{roll_number}_{name}"
+        if os.path.exists(student_dir):
+            shutil.rmtree(student_dir)
+        
+        # Remove from attendance records
+        attendance_file = "data/attendance.json"
+        if os.path.exists(attendance_file):
+            with open(attendance_file, 'r') as f:
+                attendance_data = json.load(f)
+            
+            # Remove student from all dates and classes
+            for date_key in attendance_data:
+                if isinstance(attendance_data[date_key], dict):
+                    for class_name in attendance_data[date_key]:
+                        if isinstance(attendance_data[date_key][class_name], dict):
+                            if student_id in attendance_data[date_key][class_name]:
+                                del attendance_data[date_key][class_name][student_id]
+            
+            with open(attendance_file, 'w') as f:
+                json.dump(attendance_data, f, indent=2)
+        
+        return True
+    except Exception as e:
+        print(f"Manual deletion error: {e}")
+        return False
+
 def load_glassmorphism_styles():
     """Load glassmorphism CSS and JavaScript"""
     try:
@@ -109,6 +163,11 @@ def main():
         if st.button("📱 QR Scanner", key="nav_qr"):
             st.session_state.current_page = "QR Scanner"
             st.experimental_set_query_params(page="qr")
+    
+    # Debug: Clear cache button (can be removed in production)
+    if st.sidebar.button("🔄 Clear Cache (Debug)", help="Clear cache to reload components"):
+        clear_cache()
+        st.experimental_rerun()
     
     page = st.session_state.current_page
     
@@ -296,7 +355,7 @@ def show_student_registration(face_recognizer, db_manager, qr_handler):
     students = db_manager.get_all_students()
     
     if students:
-        # Create a simple display of registered students
+        # Create a display of registered students with edit functionality
         for idx, student in enumerate(students):
             with st.expander(f"📚 {student.get('name', 'Unknown')} - {student.get('roll_number', 'N/A')}"):
                 col1, col2 = st.columns(2)
@@ -305,8 +364,10 @@ def show_student_registration(face_recognizer, db_manager, qr_handler):
                     classes = student.get('classes', student.get('class', 'N/A'))
                     if isinstance(classes, list):
                         classes_str = ', '.join(classes)
+                        current_classes = classes
                     else:
                         classes_str = classes
+                        current_classes = [classes] if classes != 'N/A' else []
                     st.write(f"**Classes:** {classes_str}")
                     st.write(f"**Email:** {student.get('email', 'N/A')}")
                 with col2:
@@ -316,6 +377,113 @@ def show_student_registration(face_recognizer, db_manager, qr_handler):
                 # Show image count
                 image_count = len(student.get('image_paths', []))
                 st.write(f"**Training Images:** {image_count}")
+                
+                # Edit Classes Section
+                st.markdown("---")
+                st.subheader("✏️ Edit Student Classes")
+                
+                # Get all available classes
+                all_classes = db_manager.get_all_classes()
+                available_class_names = [cls.get('name', 'Unknown') for cls in all_classes]
+                
+                if available_class_names:
+                    # Current classes display
+                    st.write(f"**Current Classes:** {', '.join(current_classes) if current_classes else 'None'}")
+                    
+                    # Multi-select for editing classes
+                    updated_classes = st.multiselect(
+                        "Update Classes (Select/Deselect to add/remove):",
+                        available_class_names,
+                        default=[cls for cls in current_classes if cls in available_class_names],
+                        key=f"edit_classes_{student.get('id', idx)}"
+                    )
+                    
+                    # Update button
+                    if st.button(f"💾 Update Classes", key=f"update_{student.get('id', idx)}"):
+                        try:
+                            # Prepare updated data
+                            updated_data = student.copy()
+                            updated_data['classes'] = updated_classes
+                            
+                            # Update in database
+                            success = db_manager.update_student(student.get('id'), updated_data)
+                            
+                            if success:
+                                st.success(f"✅ Classes updated successfully for {student.get('name', 'Student')}!")
+                                st.info(f"📚 New classes: {', '.join(updated_classes) if updated_classes else 'None'}")
+                                st.experimental_rerun()
+                            else:
+                                st.error("❌ Failed to update classes")
+                        except Exception as e:
+                            st.error(f"❌ Error updating classes: {str(e)}")
+                    
+                    # Show changes preview
+                    if set(updated_classes) != set(current_classes):
+                        added_classes = set(updated_classes) - set(current_classes)
+                        removed_classes = set(current_classes) - set(updated_classes)
+                        
+                        if added_classes:
+                            st.success(f"➕ **Will Add:** {', '.join(added_classes)}")
+                        if removed_classes:
+                            st.warning(f"➖ **Will Remove:** {', '.join(removed_classes)}")
+                else:
+                    st.warning("No classes available to assign")
+                
+                # Delete Student Section
+                st.markdown("---")
+                st.subheader("🗑️ Delete Student")
+                st.warning("⚠️ **Warning**: This will permanently delete all student data including images and attendance records!")
+                
+                col_delete1, col_delete2 = st.columns([2, 1])
+                with col_delete1:
+                    st.write(f"**Student:** {student.get('name', 'Unknown')} ({student.get('roll_number', 'N/A')})")
+                    st.write("This action cannot be undone!")
+                
+                with col_delete2:
+                    # Confirmation checkbox
+                    confirm_delete = st.checkbox(
+                        "I understand this will delete all data", 
+                        key=f"confirm_delete_{student.get('id', idx)}"
+                    )
+                    
+                    if confirm_delete:
+                        if st.button(
+                            f"🗑️ Delete Student", 
+                            key=f"delete_student_{student.get('id', idx)}",
+                            type="secondary"
+                        ):
+                            try:
+                                # Try using the database manager method first
+                                if hasattr(db_manager, 'delete_student'):
+                                    success = db_manager.delete_student(student.get('id'))
+                                else:
+                                    # Fallback to manual deletion
+                                    st.info("🔄 Using backup deletion method...")
+                                    success = manual_delete_student(student)
+                                
+                                if success:
+                                    st.success(f"✅ Student {student.get('name', 'Unknown')} deleted successfully!")
+                                    st.toast(f"🗑️ {student.get('name', 'Student')} deleted!", icon="🗑️")
+                                    st.experimental_rerun()
+                                else:
+                                    st.error("❌ Failed to delete student")
+                                    st.toast("❌ Failed to delete student", icon="❌")
+                            except Exception as e:
+                                # Final fallback - try manual deletion
+                                st.warning("🔄 Trying backup deletion method...")
+                                try:
+                                    success = manual_delete_student(student)
+                                    if success:
+                                        st.success(f"✅ Student {student.get('name', 'Unknown')} deleted successfully!")
+                                        st.toast(f"🗑️ {student.get('name', 'Student')} deleted!", icon="🗑️")
+                                        st.experimental_rerun()
+                                    else:
+                                        st.error("❌ Failed to delete student using backup method")
+                                        st.toast("❌ Deletion failed", icon="❌")
+                                except Exception as backup_error:
+                                    st.error(f"❌ Error deleting student: {str(e)}")
+                                    st.error(f"❌ Backup deletion also failed: {str(backup_error)}")
+                                    st.toast("❌ All deletion methods failed", icon="❌")
     else:
         st.info("No students registered yet.")
 
@@ -383,31 +551,91 @@ def show_attendance_marking(face_recognizer, db_manager, attendance_manager):
                 
                 if camera_input is not None:
                     # Process the frame
-                    recognized_students = face_recognizer.recognize_faces_from_image(camera_input)
-                    
-                    if recognized_students:
-                        st.success(f"Recognized {len(recognized_students)} students:")
-                        for student in recognized_students:
-                            st.write(f"- {student['name']} (Confidence: {student['confidence']:.2f})")
+                    try:
+                        recognition_result = face_recognizer.recognize_faces_from_image(camera_input)
                         
-                        # Mark attendance button
-                        if st.button("Mark Attendance for Recognized Students", type="primary"):
-                            attendance_data = attendance_manager.mark_attendance(
-                                selected_class, recognized_students, class_students, db_manager
-                            )
-                            
-                            if attendance_data and db_manager.save_attendance(attendance_data):
-                                st.success("✅ Attendance marked successfully!")
+                        # Handle backward compatibility - check if result is a list (old format)
+                        if isinstance(recognition_result, list):
+                            # Old format compatibility
+                            if recognition_result:
+                                st.success(f"✅ Recognized {len(recognition_result)} student(s):")
+                                for student in recognition_result:
+                                    st.write(f"- {student['name']} (Confidence: {student['confidence']:.2f})")
                                 
-                                # Show summary
-                                summary = attendance_manager.get_daily_summary(attendance_data, selected_class)
-                                st.metric("Attendance Summary", 
-                                         f"{summary['present']}/{summary['total']} Present", 
-                                         f"{summary['percentage']:.1f}%")
+                                # Mark attendance button
+                                if st.button("Mark Attendance for Recognized Students", type="primary"):
+                                    attendance_data = attendance_manager.mark_attendance(
+                                        selected_class, recognition_result, class_students, db_manager
+                                    )
+                                    
+                                    if attendance_data and db_manager.save_attendance(attendance_data):
+                                        st.success("✅ Attendance marked successfully!")
+                                        st.toast("✅ Attendance marked successfully!", icon="✅")
+                                        
+                                        # Show summary
+                                        summary = attendance_manager.get_daily_summary(attendance_data, selected_class)
+                                        st.metric("Attendance Summary", 
+                                                 f"{summary['present']}/{summary['total']} Present", 
+                                                 f"{summary['percentage']:.1f}%")
+                                    else:
+                                        st.error("Failed to save attendance")
+                                        st.toast("❌ Failed to save attendance", icon="❌")
                             else:
-                                st.error("Failed to save attendance")
-                    else:
-                        st.warning("No students recognized in the image")
+                                st.warning("❓ No students recognized in the image")
+                                st.toast("❓ Student not recognized", icon="❓")
+                        
+                        # New format with multiple face detection
+                        elif isinstance(recognition_result, dict):
+                            # Check if multiple faces detected
+                            if recognition_result.get('multiple_faces', False):
+                                if recognition_result.get('partial_recognition', False):
+                                    # Partial recognition scenario
+                                    recognized_count = recognition_result.get('recognized_count', 0)
+                                    total_faces = recognition_result.get('total_faces', 0)
+                                    st.error(f"🚫 {recognized_count} out of {total_faces} people recognized!")
+                                    st.toast(f"⚠️ {recognized_count}/{total_faces} people recognized - Only one person allowed!", icon="⚠️")
+                                    st.warning("🔍 Some people in the image are registered students, but multiple people detected.")
+                                else:
+                                    st.error("🚫 " + recognition_result.get('message', 'Multiple people detected'))
+                                    st.toast("⚠️ Only one person allowed at a time!", icon="⚠️")
+                                st.info("💡 Please ensure only one person is in front of the camera for attendance marking")
+                            elif recognition_result.get('students'):
+                                recognized_students = recognition_result['students']
+                                st.success(f"✅ Recognized {len(recognized_students)} student(s):")
+                                for student in recognized_students:
+                                    st.write(f"- {student['name']} (Confidence: {student['confidence']:.2f})")
+                                
+                                # Mark attendance button
+                                if st.button("Mark Attendance for Recognized Students", type="primary"):
+                                    attendance_data = attendance_manager.mark_attendance(
+                                        selected_class, recognized_students, class_students, db_manager
+                                    )
+                                    
+                                    if attendance_data and db_manager.save_attendance(attendance_data):
+                                        st.success("✅ Attendance marked successfully!")
+                                        st.toast("✅ Attendance marked successfully!", icon="✅")
+                                        
+                                        # Show summary
+                                        summary = attendance_manager.get_daily_summary(attendance_data, selected_class)
+                                        st.metric("Attendance Summary", 
+                                                 f"{summary['present']}/{summary['total']} Present", 
+                                                 f"{summary['percentage']:.1f}%")
+                                    else:
+                                        st.error("Failed to save attendance")
+                                        st.toast("❌ Failed to save attendance", icon="❌")
+                            else:
+                                if recognition_result.get('total_faces', 0) == 0:
+                                    st.warning("👤 No face detected in the image")
+                                    st.toast("👤 No face detected", icon="👤")
+                                else:
+                                    st.warning("❓ No students recognized in the image")
+                                    st.toast("❓ Student not recognized", icon="❓")
+                        else:
+                            st.error("❌ Unexpected recognition result format")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Error during face recognition: {str(e)}")
+                        st.toast("❌ Recognition error occurred", icon="❌")
         
         with col2:
             # Manual attendance option

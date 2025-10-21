@@ -33,6 +33,47 @@ class FaceRecognizer:
         )
         return faces, gray
     
+    def enhance_image_lighting(self, image):
+        """Enhance image for different lighting conditions"""
+        enhanced_images = []
+        
+        # Original image
+        enhanced_images.append(('original', image))
+        
+        # Histogram equalization for low light
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        equalized = cv2.equalizeHist(gray)
+        equalized_bgr = cv2.cvtColor(equalized, cv2.COLOR_GRAY2BGR)
+        enhanced_images.append(('equalized', equalized_bgr))
+        
+        # CLAHE (Contrast Limited Adaptive Histogram Equalization)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        clahe_gray = clahe.apply(gray)
+        clahe_bgr = cv2.cvtColor(clahe_gray, cv2.COLOR_GRAY2BGR)
+        enhanced_images.append(('clahe', clahe_bgr))
+        
+        # Brightness adjustments
+        bright_image = cv2.convertScaleAbs(image, alpha=1.2, beta=30)  # Brighter
+        enhanced_images.append(('bright', bright_image))
+        
+        dark_image = cv2.convertScaleAbs(image, alpha=0.8, beta=-20)   # Darker
+        enhanced_images.append(('dark', dark_image))
+        
+        # Gamma correction for different lighting
+        gamma_light = self.adjust_gamma(image, gamma=0.7)  # For bright conditions
+        enhanced_images.append(('gamma_light', gamma_light))
+        
+        gamma_dark = self.adjust_gamma(image, gamma=1.5)   # For dark conditions
+        enhanced_images.append(('gamma_dark', gamma_dark))
+        
+        return enhanced_images
+    
+    def adjust_gamma(self, image, gamma=1.0):
+        """Adjust gamma for lighting correction"""
+        inv_gamma = 1.0 / gamma
+        table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
+        return cv2.LUT(image, table)
+
     def process_student_images(self, student_id, student_name, image_file, roll_number=None):
         try:
             if not roll_number:
@@ -41,7 +82,7 @@ class FaceRecognizer:
             os.makedirs(student_dir, exist_ok=True)
             
             image_paths = []
-            total_variations_needed = 100
+            total_variations_needed = 200  # Increased from 100 to 200
             
             if hasattr(image_file, 'read'):
                 image_file.seek(0)
@@ -67,17 +108,41 @@ class FaceRecognizer:
             # Extract face region
             face_gray = gray[y:y+h, x:x+w]
             
-            for i in range(total_variations_needed):
-                if i == 0:
-                    processed_face = face_gray.copy()
-                else:
-                    processed_face = self.create_face_variation(face_gray, i)
-                
+            # Get enhanced images for different lighting conditions
+            enhanced_images = self.enhance_image_lighting(image)
+            
+            variations_per_enhancement = total_variations_needed // len(enhanced_images)
+            current_index = 0
+            
+            for enhancement_name, enhanced_img in enhanced_images:
+                # Extract face from enhanced image
+                enhanced_faces, enhanced_gray = self.detect_faces(enhanced_img)
+                if len(enhanced_faces) > 0:
+                    # Use the same face region coordinates
+                    enhanced_face_gray = enhanced_gray[y:y+h, x:x+w]
+                    
+                    for i in range(variations_per_enhancement):
+                        if i == 0:
+                            processed_face = enhanced_face_gray.copy()
+                        else:
+                            processed_face = self.create_face_variation(enhanced_face_gray, i)
+                        
+                        processed_face = cv2.resize(processed_face, (100, 100))
+                        
+                        image_path = os.path.join(student_dir, f"face_{current_index:03d}_{enhancement_name}.jpg")
+                        cv2.imwrite(image_path, processed_face)
+                        image_paths.append(image_path)
+                        current_index += 1
+            
+            # Fill remaining slots if needed
+            while current_index < total_variations_needed:
+                processed_face = self.create_face_variation(face_gray, current_index)
                 processed_face = cv2.resize(processed_face, (100, 100))
                 
-                image_path = os.path.join(student_dir, f"face_{i:03d}.jpg")
+                image_path = os.path.join(student_dir, f"face_{current_index:03d}_extra.jpg")
                 cv2.imwrite(image_path, processed_face)
                 image_paths.append(image_path)
+                current_index += 1
             
             self.update_student_image_paths(student_id, image_paths)
             
@@ -309,7 +374,7 @@ class FaceRecognizer:
         """Recognize faces from uploaded image"""
         if self.recognizer is None:
             print("❌ Face recognizer not available")
-            return []
+            return {'students': [], 'total_faces': 0, 'multiple_faces': False}
             
         try:
             if hasattr(image_file, 'read'):
@@ -320,11 +385,14 @@ class FaceRecognizer:
                 image = cv2.imread(image_file)
             
             if image is None:
-                return []
+                return {'students': [], 'total_faces': 0, 'multiple_faces': False}
             
             faces, gray = self.detect_faces(image)
+            total_faces = len(faces)
+            multiple_faces = total_faces > 1
             recognized_students = []
             
+            # Process all faces first to check recognition
             for (x, y, w, h) in faces:
                 face_gray = gray[y:y+h, x:x+w]
                 face_resized = cv2.resize(face_gray, (100, 100))
@@ -344,11 +412,37 @@ class FaceRecognizer:
                             'face_location': (x, y, w, h)
                         })
             
-            return recognized_students
+            # Check for partial recognition scenario
+            if multiple_faces and len(recognized_students) > 0:
+                return {
+                    'students': [], 
+                    'total_faces': total_faces, 
+                    'multiple_faces': True,
+                    'partial_recognition': True,
+                    'recognized_count': len(recognized_students),
+                    'message': f'Multiple people detected ({total_faces} faces, {len(recognized_students)} recognized). Please ensure only one person is in front of the camera.'
+                }
+            
+            # If multiple faces detected with no recognition, return early with warning
+            elif multiple_faces:
+                return {
+                    'students': [], 
+                    'total_faces': total_faces, 
+                    'multiple_faces': True,
+                    'partial_recognition': False,
+                    'message': f'Multiple faces detected ({total_faces} people). Please ensure only one person is in front of the camera.'
+                }
+            
+            # Single face scenario - return recognized students
+            return {
+                'students': recognized_students, 
+                'total_faces': total_faces, 
+                'multiple_faces': False
+            }
             
         except Exception as e:
             print(f"Error recognizing faces: {e}")
-            return []
+            return {'students': [], 'total_faces': 0, 'multiple_faces': False}
     
     def save_model(self, model_path="data/face_recognizer_model.yml"):
         """Save trained model"""
